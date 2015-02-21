@@ -6,5 +6,12 @@ public enum AuthorisationMode {
 	API_KEY,
 	SESSION_KEY,
 	REQUEST_HASH,
-	RESPONSE_HASH
+	RESPONSE_HASH;
+	
+	public static final AuthorisationMode[] ALL = new AuthorisationMode[] {
+		API_KEY,
+		SESSION_KEY,
+		REQUEST_HASH,
+		RESPONSE_HASH	
+	};
 }

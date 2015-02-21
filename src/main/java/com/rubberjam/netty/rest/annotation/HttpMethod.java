@@ -5,6 +5,10 @@ public enum HttpMethod {
 	GET,
 	POST,
 	PUT,
-	DELETE
+	DELETE;
+	
+	public io.netty.handler.codec.http.HttpMethod toNettyHttpMethod() {
+		return io.netty.handler.codec.http.HttpMethod.valueOf(name());
+	}
 	
 }
