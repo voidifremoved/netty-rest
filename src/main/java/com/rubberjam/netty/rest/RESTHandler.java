@@ -78,75 +78,26 @@ public class RESTHandler extends SimpleChannelInboundHandler<Object> {
 			final QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
 
 			RESTRequest restRequest = parseRequest(request, decoder);
+			if (restRequest == null) {
+				sendError(ctx);
+			} else {
 
-			RESTEndpoint endpoint = endpointRegistry.getRESTEndpoint(restRequest.getServiceName(), restRequest.getServiceMethod());
-			RESTMessage argument = parseArgument(request, decoder, endpoint, restRequest.getEncodingType());
-
-			endpoint.validate(restRequest, argument);
-
-			handleRequest(ctx, endpoint, restRequest, argument);
-
+				RESTEndpoint endpoint = endpointRegistry.getRESTEndpoint(restRequest.getServiceName(), restRequest.getServiceMethod());
+				RESTMessage argument = parseArgument(request, decoder, endpoint, restRequest.getEncodingType());
+	
+				endpoint.validate(restRequest, argument);
+	
+				handleRequest(ctx, endpoint, restRequest, argument);
+			}
 		} else {
 			sendError(ctx);
 		}
 	}
 
-	/*
-	 * private boolean writeResponse(HttpObject currentObj,
-	 * ChannelHandlerContext ctx) { // Decide whether to close the connection or
-	 * not. boolean keepAlive = !(request == null ||
-	 * !HttpHeaders.isKeepAlive(request)); // Build the response object.
-	 * FullHttpResponse response = new
-	 * DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-	 * currentObj.getDecoderResult().isSuccess() ? HttpResponseStatus.OK :
-	 * HttpResponseStatus.BAD_REQUEST, Unpooled.copiedBuffer( buf.toString(),
-	 * CharsetUtil.UTF_8));
-	 * 
-	 * response.headers().set(HttpHeaders.Names.CONTENT_TYPE,
-	 * "text/plain; charset=UTF-8");
-	 * 
-	 * if (keepAlive) { // Add 'Content-Length' header only for a keep-alive
-	 * connection. response.headers().set(HttpHeaders.Names.CONTENT_LENGTH,
-	 * response.content().readableBytes()); // Add keep alive header as per: //
-	 * - //
-	 * http://www.w3.org/Protocols/HTTP/1.1/draft-ietf-http-v11-spec-01.html
-	 * #Connection response.headers().set(HttpHeaders.Names.CONNECTION,
-	 * HttpHeaders.Values.KEEP_ALIVE); }
-	 * 
-	 * // Encode the cookie. if (request != null) { String cookieString =
-	 * request.headers().get(HttpHeaders.Names.COOKIE); if (cookieString !=
-	 * null) { Set<Cookie> cookies = CookieDecoder.decode(cookieString); if
-	 * (!cookies.isEmpty()) { // Reset the cookies if necessary. for (Cookie
-	 * cookie : cookies) { response.headers().add(HttpHeaders.Names.SET_COOKIE,
-	 * ServerCookieEncoder.encode(cookie)); } } } else { // Browser sent no
-	 * cookie. Add some. response.headers().add(HttpHeaders.Names.SET_COOKIE,
-	 * ServerCookieEncoder.encode("key1", "value1"));
-	 * response.headers().add(HttpHeaders.Names.SET_COOKIE,
-	 * ServerCookieEncoder.encode("key2", "value2")); } } // Write the response.
-	 * ctx.write(response);
-	 * 
-	 * return keepAlive; }
-	 */
-
-	private static void send100Continue(ChannelHandlerContext ctx) {
-		FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE);
-		ctx.write(response);
-	}
 
 	private static void sendError(ChannelHandlerContext ctx) {
 		FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
 		ctx.write(response);
-	}
-
-	private static void appendDecoderResult(StringBuilder buf, HttpObject o) {
-		DecoderResult result = o.getDecoderResult();
-		if (result.isSuccess()) {
-			return;
-		}
-
-		buf.append(".. WITH DECODER FAILURE: ");
-		buf.append(result.cause());
-		buf.append("\r\n");
 	}
 
 	@Override
@@ -176,12 +127,15 @@ public class RESTHandler extends SimpleChannelInboundHandler<Object> {
 							defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, result.getResponseStatus(),
 									Unpooled.wrappedBuffer(byteArray));
 						} else {
-							ProtobufUtils.writeToString(result.getResponse().getMessage(), restRequest.getEncodingType());
+							byte[] byteArray = ProtobufUtils.writeToString(result.getResponse().getMessage(), restRequest.getEncodingType()).getBytes();
+							defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, result.getResponseStatus(),
+									Unpooled.wrappedBuffer(byteArray));
 						}
 						endpoint.addResponseHeaders(result, defaultFullHttpResponse);
 						ctx.writeAndFlush(defaultFullHttpResponse);
+						ctx.close();
 					} catch (Throwable t) {
-						exceptionCaught(ctx, result.getException());
+						exceptionCaught(ctx, t);
 					}
 				}
 
@@ -211,8 +165,16 @@ public class RESTHandler extends SimpleChannelInboundHandler<Object> {
 
 		r.withApiKey(parameter(decoder, "apiKey")).withSessionKey(parameter(decoder, "sessionKey"))
 				.withHash(hash == null ? 0 : Long.valueOf(hash));
-
-		r.withEncodingType(EncodingType.valueOf(parts[0].toUpperCase())).withServiceName(parts[1]).withServiceMethod(parts[2]);
+		
+		if (parts.length < 3) {
+			return null;
+		}
+		String encoding = parts[0].toUpperCase();
+		
+		if (!"BINARY".equals(encoding) && !"JSON".equals(encoding)) {
+			return null;
+		}
+		r.withEncodingType(EncodingType.valueOf(encoding)).withServiceName(parts[1]).withServiceMethod(parts[2]);
 
 		return r.build();
 	}
