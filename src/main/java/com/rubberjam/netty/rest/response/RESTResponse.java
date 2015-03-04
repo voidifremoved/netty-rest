@@ -3,6 +3,7 @@ package com.rubberjam.netty.rest.response;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import com.google.protobuf.Message;
+import com.rubberjam.netty.rest.message.DefaultRESTMessage;
 import com.rubberjam.netty.rest.message.RESTMessage;
 
 /**
@@ -40,7 +41,11 @@ public class RESTResponse<T extends Message> {
 		this.responseStatus = responseCode;
 	}
 
-
+	public static <T extends Message> RESTResponse<T> defaultResponse(T message) {
+		return new RESTResponse<T>(new DefaultRESTMessage<T>(message));
+	}
+	
+	
 	public RESTMessage<T> getResponse() {
 		return response;
 	}
