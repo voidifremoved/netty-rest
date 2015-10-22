@@ -1,19 +1,5 @@
 package com.rubberjam.netty.rest;
 
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelHandler.Sharable;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.DecoderResult;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpObject;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.QueryStringDecoder;
-
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -36,6 +22,21 @@ import com.rubberjam.netty.rest.request.RESTRequest;
 import com.rubberjam.netty.rest.request.RESTRequest.RESTRequestBuilder;
 import com.rubberjam.netty.rest.response.RESTResponse;
 import com.rubberjam.netty.rest.util.RESTRequestIdGenerator;
+
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler.Sharable;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.multipart.Attribute;
+import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 
 /**
  * Netty channel handler for directing HTTP requests to registered REST
@@ -193,10 +194,12 @@ public class RESTHandler extends SimpleChannelInboundHandler<Object> {
 
 	private RESTMessage parseArgument(FullHttpRequest request, QueryStringDecoder decoder, RESTEndpoint endpoint, EncodingType encodingType) {
 		String message = parameter(decoder, "message");
-
+		
+		
 		byte[] body;
 		if (message == null) {
-			body = request.content().array();
+			body = new byte[request.content().readableBytes()];
+			request.content().readBytes(body);
 		} else {
 			if (encodingType == EncodingType.BINARY) {
 				body = Base64Utils.decodeFromString(message);
